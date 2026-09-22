@@ -1,14 +1,18 @@
 #include <fstream>
 #include <iostream>
 #include <vector>
+#include <algorithm>
 #include "vec3.h"
 #include "ray.h"
 #include "hit_record.h"
 #include "sphere.h"
 
-Vec3 ray_color(const Ray& r, const std::vector<Sphere>& world) {
+Vec3 ray_color(const Ray& r, const std::vector<Sphere>& world, int depth) {
+    // Limite de rebonds : si on en a fait trop, plus de lumière ajoutée
+    if (depth <= 0) return Vec3(0, 0, 0);
+
     HitRecord closest_rec;
-    double closest_so_far = 1e9; // "infini" pour l'instant
+    double closest_so_far = 1e9;
 
     for (const auto& obj : world) {
         HitRecord temp_rec;
@@ -19,11 +23,15 @@ Vec3 ray_color(const Ray& r, const std::vector<Sphere>& world) {
     }
 
     if (closest_rec.hit_anything) {
-        Vec3 n = closest_rec.normal;
-        return 0.5 * Vec3(n.x + 1, n.y + 1, n.z + 1);
+        // Nouvelle direction aléatoire autour de la normale
+        Vec3 target = closest_rec.point + closest_rec.normal + Vec3::random_in_unit_sphere();
+        Ray bounced_ray(closest_rec.point, target - closest_rec.point);
+
+        // Récursion : la couleur de ce point dépend de la couleur du rayon rebondi, atténuée
+        return 0.5 * ray_color(bounced_ray, world, depth - 1);
     }
 
-    // Fond : dégradé du rayon (comme avant)
+    // Fond (ciel)
     Vec3 unit_direction = r.direction.normalized();
     double t = 0.5 * (unit_direction.y + 1.0);
     return (1.0 - t) * Vec3(1.0, 1.0, 1.0) + t * Vec3(0.5, 0.7, 1.0);
@@ -34,6 +42,8 @@ int main() {
     const double aspect_ratio = 16.0 / 9.0;
     const int width = 400;
     const int height = static_cast<int>(width / aspect_ratio);
+    const int samples_per_pixel = 50;
+    const int max_depth = 10;
 
     // Scène : une sphère + un "sol" (grosse sphère en dessous)
     std::vector<Sphere> world;
@@ -56,15 +66,25 @@ int main() {
 
     for (int j = height - 1; j >= 0; --j) {
         for (int i = 0; i < width; ++i) {
-            double u = double(i) / (width - 1);
-            double v = double(j) / (height - 1);
+            Vec3 color(0, 0, 0);
 
-            Ray r(origin, lower_left_corner + horizontal * u + vertical * v - origin);
-            Vec3 color = ray_color(r, world);
+            for (int s = 0; s < samples_per_pixel; ++s) {
+                double u = (i + double(rand()) / RAND_MAX) / (width - 1);
+                double v = (j + double(rand()) / RAND_MAX) / (height - 1);
 
-            int ir = static_cast<int>(255.999 * color.x);
-            int ig = static_cast<int>(255.999 * color.y);
-            int ib = static_cast<int>(255.999 * color.z);
+                Ray r(origin, lower_left_corner + horizontal * u + vertical * v - origin);
+                color = color + ray_color(r, world, max_depth);
+            }
+
+            // Moyenne des échantillons + correction gamma (racine carrée)
+            double scale = 1.0 / samples_per_pixel;
+            double r_c = std::sqrt(color.x * scale);
+            double g_c = std::sqrt(color.y * scale);
+            double b_c = std::sqrt(color.z * scale);
+
+            int ir = static_cast<int>(256 * std::clamp(r_c, 0.0, 0.999));
+            int ig = static_cast<int>(256 * std::clamp(g_c, 0.0, 0.999));
+            int ib = static_cast<int>(256 * std::clamp(b_c, 0.0, 0.999));
 
             out << ir << ' ' << ig << ' ' << ib << '\n';
         }

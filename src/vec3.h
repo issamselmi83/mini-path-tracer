@@ -28,6 +28,20 @@ public:
     double length_squared() const { return x * x + y * y + z * z; }
 
     Vec3 normalized() const { return *this / length(); }
+    static Vec3 random() {
+    return Vec3(
+        (double(rand()) / RAND_MAX) * 2.0 - 1.0,
+        (double(rand()) / RAND_MAX) * 2.0 - 1.0,
+        (double(rand()) / RAND_MAX) * 2.0 - 1.0
+    );
+}
+
+static Vec3 random_in_unit_sphere() {
+    while (true) {
+        Vec3 p = random();
+        if (p.length_squared() < 1.0) return p;
+    }
+}
 };
 
 inline Vec3 operator*(double t, const Vec3& v) { return v * t; }
