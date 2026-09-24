@@ -3,6 +3,7 @@
 #include <vector>
 #include <algorithm>
 #include <memory>
+#include <cmath>
 #include "vec3.h"
 #include "ray.h"
 #include "hit_record.h"
@@ -42,30 +43,43 @@ int main() {
     const double aspect_ratio = 16.0 / 9.0;
     const int width = 400;
     const int height = static_cast<int>(width / aspect_ratio);
-    const int samples_per_pixel = 50;
+    const int samples_per_pixel = 100;
     const int max_depth = 10;
 
-    // Matériaux (gardés en vie tout le long du programme)
+    // Matériaux
     std::vector<std::unique_ptr<Material>> materials;
     materials.push_back(std::make_unique<Lambertian>(Vec3(0.3, 0.8, 0.3)));  // sol vert
     materials.push_back(std::make_unique<Lambertian>(Vec3(0.8, 0.2, 0.2)));  // sphère rouge mate
-    materials.push_back(std::make_unique<Metal>(Vec3(0.8, 0.8, 0.8), 0.1));  // sphère métal
+    materials.push_back(std::make_unique<Metal>(Vec3(0.8, 0.8, 0.8), 0.05)); // sphère métal (presque miroir)
+    materials.push_back(std::make_unique<Dielectric>(1.5));                  // verre
 
-    // Scène
+    // Scène : sphères plus espacées
     std::vector<Sphere> world;
     world.push_back(Sphere(Vec3(0, -100.5, -1), 100, materials[0].get()));   // sol
-    world.push_back(Sphere(Vec3(-0.6, 0, -1), 0.5, materials[1].get()));     // sphère mate
-    world.push_back(Sphere(Vec3(0.6, 0, -1), 0.5, materials[2].get()));      // sphère métal
+    world.push_back(Sphere(Vec3(-1.3, 0, -1), 0.5, materials[1].get()));     // mate
+    world.push_back(Sphere(Vec3(0, 0, -1), 0.5, materials[2].get()));        // métal
+    world.push_back(Sphere(Vec3(1.3, 0, -1), 0.5, materials[3].get()));      // verre (extérieur)
+    world.push_back(Sphere(Vec3(1.3, 0, -1), -0.45, materials[3].get()));    // verre (intérieur, rayon négatif = coque creuse)
 
-    // Caméra
-    double viewport_height = 2.0;
+    // Caméra : position surélevée et légèrement de côté, plus intéressante qu'une vue frontale plate
+    double vfov = 30.0; // champ de vision vertical en degrés
+    Vec3 lookfrom(0, 1.2, 2.5);
+    Vec3 lookat(0, 0, -1);
+    Vec3 vup(0, 1, 0);
+
+    double theta = vfov * M_PI / 180.0;
+    double h = std::tan(theta / 2);
+    double viewport_height = 2.0 * h;
     double viewport_width = aspect_ratio * viewport_height;
-    double focal_length = 1.0;
 
-    Vec3 origin(0, 0, 0);
-    Vec3 horizontal(viewport_width, 0, 0);
-    Vec3 vertical(0, viewport_height, 0);
-    Vec3 lower_left_corner = origin - horizontal / 2 - vertical / 2 - Vec3(0, 0, focal_length);
+    Vec3 w = (lookfrom - lookat).normalized();
+    Vec3 u = vup.cross(w).normalized();
+    Vec3 v = w.cross(u);
+
+    Vec3 origin = lookfrom;
+    Vec3 horizontal = viewport_width * u;
+    Vec3 vertical = viewport_height * v;
+    Vec3 lower_left_corner = origin - horizontal / 2 - vertical / 2 - w;
 
     // Rendu
     std::ofstream out("output.ppm");
@@ -76,10 +90,10 @@ int main() {
             Vec3 color(0, 0, 0);
 
             for (int s = 0; s < samples_per_pixel; ++s) {
-                double u = (i + double(rand()) / RAND_MAX) / (width - 1);
-                double v = (j + double(rand()) / RAND_MAX) / (height - 1);
+                double su = (i + double(rand()) / RAND_MAX) / (width - 1);
+                double sv = (j + double(rand()) / RAND_MAX) / (height - 1);
 
-                Ray r(origin, lower_left_corner + horizontal * u + vertical * v - origin);
+                Ray r(origin, lower_left_corner + horizontal * su + vertical * sv - origin);
                 color = color + ray_color(r, world, max_depth);
             }
 
