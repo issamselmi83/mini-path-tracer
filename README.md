@@ -26,7 +26,7 @@ make
 ./path_tracer
 \`\`\`
 
-Génère une image `output.ppm` dans le dossier `build/`.
+Génère une image output.ppm dans le dossier build/.
 
 ## Structure du projet
 
@@ -37,11 +37,11 @@ src/
 ├── ray.h            # Représentation d'un rayon (origine + direction)
 ├── hit_record.h     # Structure décrivant une intersection
 ├── sphere.h         # Géométrie : intersection rayon/sphère
-└── material.h        # Matériaux : Lambertian, Metal, Dielectric
+└── material.h       # Matériaux : Lambertian, Metal, Dielectric
 \`\`\`
 
 ## Ce que ce projet démontre
 
 Projet réalisé en autonomie en parallèle de mon M2 GIG (Géométrie Informatique Graphique) à Aix-Marseille Université, pour approfondir les fondamentaux mathématiques du rendu 3D (vecteurs, intersections géométriques, éclairage physique) avant d'attaquer un moteur de rendu temps réel (OpenGL/Vulkan).
 
-Inspiré de la méthode décrite dans [*Ray Tracing in One Weekend*](https://raytracing.github.io/) de Peter Shirley.
+Inspiré de la méthode décrite dans [Ray Tracing in One Weekend](https://raytracing.github.io/) de Peter Shirley.
