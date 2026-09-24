@@ -19,18 +19,18 @@ Un ray tracer / path tracer écrit from scratch en C++, sans bibliothèque graph
 
 Prérequis : CMake 3.10+, compilateur C++17 (g++/clang)
 
-\`\`\`bash
+```bash
 mkdir build && cd build
 cmake ..
 make
 ./path_tracer
-\`\`\`
+```
 
 Génère une image output.ppm dans le dossier build/.
 
 ## Structure du projet
 
-\`\`\`
+```
 src/
 ├── main.cpp        # Boucle de rendu, définition de la scène et de la caméra
 ├── vec3.h           # Classe vecteur 3D (opérations de base)
@@ -38,7 +38,7 @@ src/
 ├── hit_record.h     # Structure décrivant une intersection
 ├── sphere.h         # Géométrie : intersection rayon/sphère
 └── material.h       # Matériaux : Lambertian, Metal, Dielectric
-\`\`\`
+```
 
 ## Ce que ce projet démontre
 
