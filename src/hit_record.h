@@ -1,9 +1,12 @@
 #pragma once
 #include "vec3.h"
 
+class Material; // déclaration anticipée
+
 struct HitRecord {
-    Vec3 point;      // le point d'impact
-    Vec3 normal;      // la normale à la surface à cet endroit
-    double t;         // la distance le long du rayon
+    Vec3 point;
+    Vec3 normal;
+    double t;
     bool hit_anything = false;
+    const Material* mat_ptr = nullptr; // pointeur vers le matériau touché
 };

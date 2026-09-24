@@ -13,7 +13,7 @@ public:
     Vec3 operator-(const Vec3& v) const { return Vec3(x - v.x, y - v.y, z - v.z); }
     Vec3 operator*(double t) const { return Vec3(x * t, y * t, z * t); }
     Vec3 operator/(double t) const { return *this * (1.0 / t); }
-
+    Vec3 operator*(const Vec3& v) const { return Vec3(x * v.x, y * v.y, z * v.z); }
     double dot(const Vec3& v) const { return x * v.x + y * v.y + z * v.z; }
 
     Vec3 cross(const Vec3& v) const {

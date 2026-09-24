@@ -2,13 +2,14 @@
 #include <iostream>
 #include <vector>
 #include <algorithm>
+#include <memory>
 #include "vec3.h"
 #include "ray.h"
 #include "hit_record.h"
+#include "material.h"
 #include "sphere.h"
 
 Vec3 ray_color(const Ray& r, const std::vector<Sphere>& world, int depth) {
-    // Limite de rebonds : si on en a fait trop, plus de lumière ajoutée
     if (depth <= 0) return Vec3(0, 0, 0);
 
     HitRecord closest_rec;
@@ -23,15 +24,14 @@ Vec3 ray_color(const Ray& r, const std::vector<Sphere>& world, int depth) {
     }
 
     if (closest_rec.hit_anything) {
-        // Nouvelle direction aléatoire autour de la normale
-        Vec3 target = closest_rec.point + closest_rec.normal + Vec3::random_in_unit_sphere();
-        Ray bounced_ray(closest_rec.point, target - closest_rec.point);
-
-        // Récursion : la couleur de ce point dépend de la couleur du rayon rebondi, atténuée
-        return 0.5 * ray_color(bounced_ray, world, depth - 1);
+        Ray scattered;
+        Vec3 attenuation;
+        if (closest_rec.mat_ptr->scatter(r, closest_rec, attenuation, scattered)) {
+            return attenuation * ray_color(scattered, world, depth - 1);
+        }
+        return Vec3(0, 0, 0);
     }
 
-    // Fond (ciel)
     Vec3 unit_direction = r.direction.normalized();
     double t = 0.5 * (unit_direction.y + 1.0);
     return (1.0 - t) * Vec3(1.0, 1.0, 1.0) + t * Vec3(0.5, 0.7, 1.0);
@@ -45,10 +45,17 @@ int main() {
     const int samples_per_pixel = 50;
     const int max_depth = 10;
 
-    // Scène : une sphère + un "sol" (grosse sphère en dessous)
+    // Matériaux (gardés en vie tout le long du programme)
+    std::vector<std::unique_ptr<Material>> materials;
+    materials.push_back(std::make_unique<Lambertian>(Vec3(0.3, 0.8, 0.3)));  // sol vert
+    materials.push_back(std::make_unique<Lambertian>(Vec3(0.8, 0.2, 0.2)));  // sphère rouge mate
+    materials.push_back(std::make_unique<Metal>(Vec3(0.8, 0.8, 0.8), 0.1));  // sphère métal
+
+    // Scène
     std::vector<Sphere> world;
-    world.push_back(Sphere(Vec3(0, 0, -1), 0.5));
-    world.push_back(Sphere(Vec3(0, -100.5, -1), 100));
+    world.push_back(Sphere(Vec3(0, -100.5, -1), 100, materials[0].get()));   // sol
+    world.push_back(Sphere(Vec3(-0.6, 0, -1), 0.5, materials[1].get()));     // sphère mate
+    world.push_back(Sphere(Vec3(0.6, 0, -1), 0.5, materials[2].get()));      // sphère métal
 
     // Caméra
     double viewport_height = 2.0;
@@ -76,7 +83,6 @@ int main() {
                 color = color + ray_color(r, world, max_depth);
             }
 
-            // Moyenne des échantillons + correction gamma (racine carrée)
             double scale = 1.0 / samples_per_pixel;
             double r_c = std::sqrt(color.x * scale);
             double g_c = std::sqrt(color.y * scale);
