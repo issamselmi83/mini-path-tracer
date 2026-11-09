@@ -201,7 +201,7 @@ void render_rows(
 int main(int argc, char** argv) {
     // Image
     const double aspect_ratio = 16.0 / 9.0;
-    const int width = 400;
+    const int width = 800;
     const int height = static_cast<int>(width / aspect_ratio);
     const int samples_per_pixel = (argc > 1) ? std::atoi(argv[1]) : 100;
     const int max_depth = 50; // un peu plus haut : la diffusion dans un volume consomme des rebonds

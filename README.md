@@ -4,7 +4,7 @@ Un path tracer Monte Carlo écrit en **C++17** from scratch (CPU, multithread), 
 
 ![Rendu : nuage volumétrique éclairé par une HDRI](render_cloud.png)
 
-*Nuage procédural (grille 3D, delta tracking) éclairé par une HDRI Poly Haven (Kloofendal 48d partly cloudy). 400x225, 300 échantillons par pixel, environ 13 s sur 8 threads.*
+*Nuage procédural (grille 3D, delta tracking) éclairé par une HDRI Poly Haven (Kloofendal 48d partly cloudy). 800x450, 1500 échantillons par pixel, environ 5 min 30 sur 8 threads.*
 
 ## Fonctionnalités
 
@@ -46,6 +46,8 @@ Le build est en `Release` par défaut.
 | `intensity` | exposition de l'envmap | 1.0 |
 | `rotation_deg` | rotation de l'envmap autour de l'axe vertical | 0 |
 | `max_radiance` | écrêtage par échantillon (anti-fireflies) | 50 |
+
+Un aperçu rapide (quelques secondes) s'obtient avec peu d'échantillons, par exemple `./path_tracer 50`. Le rendu de la capture ci-dessus (800x450, 1500 spp, 8 threads) prend environ 5 min 30.
 
 Exemple avec une HDRI (à télécharger, par exemple sur [Poly Haven](https://polyhaven.com/hdris), en `.hdr` 1K) :
 
