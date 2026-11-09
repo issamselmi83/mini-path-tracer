@@ -5,15 +5,22 @@
 #include <memory>
 #include <cmath>
 #include <thread>
+#include <chrono>
 #include "vec3.h"
 #include "ray.h"
 #include "hit_record.h"
 #include "material.h"
 #include "sphere.h"
+#include "volume.h"
+#include "rng.h"
 
-Vec3 ray_color(const Ray& r, const std::vector<Sphere>& world, int depth) {
+Vec3 ray_color(const Ray& r,
+               const std::vector<Sphere>& world,
+               const std::vector<Volume>& volumes,
+               int depth) {
     if (depth <= 0) return Vec3(0, 0, 0);
 
+    // 1. Objet solide le plus proche
     HitRecord closest_rec;
     double closest_so_far = 1e9;
 
@@ -25,11 +32,30 @@ Vec3 ray_color(const Ray& r, const std::vector<Sphere>& world, int depth) {
         }
     }
 
+    // 2. Interaction avec un volume, seulement si elle a lieu AVANT l'objet solide
+    double t_limit = closest_so_far;
+    const Volume* hit_volume = nullptr;
+    for (const auto& vol : volumes) {
+        double t;
+        if (vol.sample_interaction(r, t_limit, t)) {
+            t_limit = t;
+            hit_volume = &vol;
+        }
+    }
+
+    if (hit_volume) {
+        // Diffusion isotrope : nouvelle direction uniforme sur la sphere
+        Vec3 point = r.at(t_limit);
+        Ray scattered(point, Vec3::random_unit_vector());
+        return hit_volume->albedo * ray_color(scattered, world, volumes, depth - 1);
+    }
+
+    // 3. Sinon : comportement habituel
     if (closest_rec.hit_anything) {
         Ray scattered;
         Vec3 attenuation;
         if (closest_rec.mat_ptr->scatter(r, closest_rec, attenuation, scattered)) {
-            return attenuation * ray_color(scattered, world, depth - 1);
+            return attenuation * ray_color(scattered, world, volumes, depth - 1);
         }
         return Vec3(0, 0, 0);
     }
@@ -45,6 +71,7 @@ void render_rows(
     int width, int height,
     int samples_per_pixel, int max_depth,
     const std::vector<Sphere>& world,
+    const std::vector<Volume>& volumes,
     const Vec3& origin, const Vec3& lower_left_corner,
     const Vec3& horizontal, const Vec3& vertical,
     std::vector<Vec3>& pixels
@@ -54,11 +81,11 @@ void render_rows(
             Vec3 color(0, 0, 0);
 
             for (int s = 0; s < samples_per_pixel; ++s) {
-                double su = (i + double(rand()) / RAND_MAX) / (width - 1);
-                double sv = (j + double(rand()) / RAND_MAX) / (height - 1);
+                double su = (i + random_double()) / (width - 1);
+                double sv = (j + random_double()) / (height - 1);
 
                 Ray r(origin, lower_left_corner + horizontal * su + vertical * sv - origin);
-                color = color + ray_color(r, world, max_depth);
+                color = color + ray_color(r, world, volumes, max_depth);
             }
 
             double scale = 1.0 / samples_per_pixel;
@@ -71,22 +98,23 @@ void render_rows(
     }
 }
 
-int main() {
+// Usage : ./path_tracer [samples_par_pixel] [nb_threads]
+int main(int argc, char** argv) {
     // Image
     const double aspect_ratio = 16.0 / 9.0;
     const int width = 400;
     const int height = static_cast<int>(width / aspect_ratio);
-    const int samples_per_pixel = 100;
-    const int max_depth = 10;
+    const int samples_per_pixel = (argc > 1) ? std::atoi(argv[1]) : 100;
+    const int max_depth = 20; // un peu plus haut : la diffusion dans un volume consomme des rebonds
 
-    // Matériaux
+    // Materiaux
     std::vector<std::unique_ptr<Material>> materials;
-    materials.push_back(std::make_unique<Lambertian>(Vec3(0.3, 0.8, 0.3)));
-    materials.push_back(std::make_unique<Lambertian>(Vec3(0.8, 0.2, 0.2)));
-    materials.push_back(std::make_unique<Metal>(Vec3(0.8, 0.8, 0.8), 0.05));
-    materials.push_back(std::make_unique<Dielectric>(1.5));
+    materials.push_back(std::make_unique<Lambertian>(Vec3(0.3, 0.8, 0.3)));  // sol vert
+    materials.push_back(std::make_unique<Lambertian>(Vec3(0.8, 0.2, 0.2)));  // sphere rouge mate
+    materials.push_back(std::make_unique<Metal>(Vec3(0.8, 0.8, 0.8), 0.05)); // sphere metal
+    materials.push_back(std::make_unique<Dielectric>(1.5));                  // verre
 
-    // Scène
+    // Scene (objets solides)
     std::vector<Sphere> world;
     world.push_back(Sphere(Vec3(0, -100.5, -1), 100, materials[0].get()));
     world.push_back(Sphere(Vec3(-1.3, 0, -1), 0.5, materials[1].get()));
@@ -94,7 +122,11 @@ int main() {
     world.push_back(Sphere(Vec3(1.3, 0, -1), 0.5, materials[3].get()));
     world.push_back(Sphere(Vec3(1.3, 0, -1), -0.45, materials[3].get()));
 
-    // Caméra
+    // Scene (milieux participants) : une boule de brouillard devant la scene
+    std::vector<Volume> volumes;
+    volumes.push_back(Volume(Vec3(0.65, -0.05, 0.1), 0.4, 3.0, Vec3(0.95, 0.95, 0.95)));
+
+    // Camera
     double vfov = 30.0;
     Vec3 lookfrom(0, 1.2, 2.5);
     Vec3 lookat(0, 0, -1);
@@ -114,14 +146,15 @@ int main() {
     Vec3 vertical = viewport_height * v;
     Vec3 lower_left_corner = origin - horizontal / 2 - vertical / 2 - w;
 
-    // Buffer partagé pour stocker tous les pixels calculés
     std::vector<Vec3> pixels(width * height);
 
-    // Découpage du travail entre threads
-    unsigned int num_threads = std::thread::hardware_concurrency();
-    if (num_threads == 0) num_threads = 4; // valeur de secours si la détection échoue
+    unsigned int num_threads = (argc > 2) ? std::atoi(argv[2]) : std::thread::hardware_concurrency();
+    if (num_threads == 0) num_threads = 4;
 
-    std::cout << "Rendering with " << num_threads << " threads...\n";
+    std::cout << "Rendering " << width << "x" << height << ", " << samples_per_pixel
+              << " spp, " << num_threads << " thread(s)...\n";
+
+    auto t_start = std::chrono::steady_clock::now();
 
     std::vector<std::thread> threads;
     int rows_per_thread = height / num_threads;
@@ -135,19 +168,19 @@ int main() {
             row_start, row_end,
             width, height,
             samples_per_pixel, max_depth,
-            std::cref(world),
+            std::cref(world), std::cref(volumes),
             std::cref(origin), std::cref(lower_left_corner),
             std::cref(horizontal), std::cref(vertical),
             std::ref(pixels)
         );
     }
 
-    // Attend que tous les threads terminent
-    for (auto& th : threads) {
-        th.join();
-    }
+    for (auto& th : threads) th.join();
 
-    // Écriture du fichier (séquentielle, une fois tout calculé)
+    auto t_end = std::chrono::steady_clock::now();
+    double seconds = std::chrono::duration<double>(t_end - t_start).count();
+    std::cout << "Render time: " << seconds << " s\n";
+
     std::ofstream out("output.ppm");
     out << "P3\n" << width << " " << height << "\n255\n";
 

@@ -2,8 +2,9 @@
 #include <cmath>
 #include "vec3.h"
 #include "ray.h"
+#include "rng.h"
 
-struct HitRecord; // déclaration anticipée
+struct HitRecord; // declaration anticipee
 
 inline Vec3 reflect(const Vec3& v, const Vec3& n) {
     return v - 2 * v.dot(n) * n;
@@ -101,7 +102,7 @@ inline bool Dielectric::scatter(const Ray& r_in, const HitRecord& rec, Vec3& att
         reflect_prob = 1.0;
     }
 
-    if (double(rand()) / RAND_MAX < reflect_prob) {
+    if (random_double() < reflect_prob) {
         Vec3 reflected = reflect(r_in.direction, rec.normal);
         scattered = Ray(rec.point, reflected);
     } else {

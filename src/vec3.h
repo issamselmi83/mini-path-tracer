@@ -1,6 +1,7 @@
 #pragma once
 #include <cmath>
 #include <iostream>
+#include "rng.h"
 
 class Vec3 {
 public:
@@ -12,8 +13,9 @@ public:
     Vec3 operator+(const Vec3& v) const { return Vec3(x + v.x, y + v.y, z + v.z); }
     Vec3 operator-(const Vec3& v) const { return Vec3(x - v.x, y - v.y, z - v.z); }
     Vec3 operator*(double t) const { return Vec3(x * t, y * t, z * t); }
-    Vec3 operator/(double t) const { return *this * (1.0 / t); }
     Vec3 operator*(const Vec3& v) const { return Vec3(x * v.x, y * v.y, z * v.z); }
+    Vec3 operator/(double t) const { return *this * (1.0 / t); }
+
     double dot(const Vec3& v) const { return x * v.x + y * v.y + z * v.z; }
 
     Vec3 cross(const Vec3& v) const {
@@ -28,20 +30,30 @@ public:
     double length_squared() const { return x * x + y * y + z * z; }
 
     Vec3 normalized() const { return *this / length(); }
-    static Vec3 random() {
-    return Vec3(
-        (double(rand()) / RAND_MAX) * 2.0 - 1.0,
-        (double(rand()) / RAND_MAX) * 2.0 - 1.0,
-        (double(rand()) / RAND_MAX) * 2.0 - 1.0
-    );
-}
 
-static Vec3 random_in_unit_sphere() {
-    while (true) {
-        Vec3 p = random();
-        if (p.length_squared() < 1.0) return p;
+    static Vec3 random() {
+        return Vec3(
+            random_double() * 2.0 - 1.0,
+            random_double() * 2.0 - 1.0,
+            random_double() * 2.0 - 1.0
+        );
     }
-}
+
+    static Vec3 random_in_unit_sphere() {
+        while (true) {
+            Vec3 p = random();
+            if (p.length_squared() < 1.0) return p;
+        }
+    }
+
+    // Direction uniforme sur la sphere unite (utile pour la diffusion isotrope)
+    static Vec3 random_unit_vector() {
+        while (true) {
+            Vec3 p = random();
+            double l2 = p.length_squared();
+            if (l2 > 1e-8 && l2 < 1.0) return p / std::sqrt(l2);
+        }
+    }
 };
 
 inline Vec3 operator*(double t, const Vec3& v) { return v * t; }

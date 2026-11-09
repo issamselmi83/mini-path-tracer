@@ -13,7 +13,7 @@ Un ray tracer / path tracer écrit from scratch en C++, sans bibliothèque graph
   - Verre (Dielectric) avec réflexion/réfraction selon l'angle (approximation de Schlick)
 - **Caméra configurable** : position, cible, champ de vision (field of view)
 - **Anti-aliasing** par supersampling
-- **Rendu multithreadé** : parallélisation automatique sur tous les cœurs CPU disponibles (~8x plus rapide sur une machine 8 threads)
+- **Rendu multithreadé** : parallélisation automatique sur tous les cœurs CPU disponibles
 
 ## Compilation
 
@@ -45,3 +45,15 @@ src/
 Projet réalisé en autonomie en parallèle de mon M2 GIG (Géométrie Informatique Graphique) à Aix-Marseille Université, pour approfondir les fondamentaux mathématiques du rendu 3D (vecteurs, intersections géométriques, éclairage physique) avant d'attaquer un moteur de rendu temps réel (OpenGL/Vulkan).
 
 Inspiré de la méthode décrite dans [Ray Tracing in One Weekend](https://raytracing.github.io/) de Peter Shirley.
+
+## Milieux participants (brouillard / fumée)
+
+![Boule de brouillard devant la scène](render_volume.png)
+
+Une sphère de brouillard à densité constante, traversée par les rayons.
+
+- **Loi de Beer-Lambert** : sur une distance d dans le milieu, la fraction de lumière qui traverse sans interagir vaut exp(-densité × d).
+- **Implémentation Monte Carlo** : pour chaque rayon, on tire une distance d'interaction -ln(u) / densité. Si elle est plus courte que la distance parcourue dans la sphère, le rayon est diffusé dans une direction uniforme ; sinon il traverse. Cette probabilité de traversée a été vérifiée numériquement (2 millions de rayons : 0,0183 mesuré pour 0,0183 attendu).
+- **Réglages** : densité (opacité du milieu) et couleur de diffusion (blanc pour du brouillard, sombre pour de la fumée), dans `volumes.push_back(Volume(...))` de `main.cpp`.
+
+Limites actuelles : densité constante, diffusion isotrope, volumes sphériques uniquement, pas d'échantillonnage direct des lumières (donc du bruit à faible nombre d'échantillons).
