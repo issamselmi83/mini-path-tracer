@@ -57,3 +57,16 @@ Une sphère de brouillard à densité constante, traversée par les rayons.
 - **Réglages** : densité (opacité du milieu) et couleur de diffusion (blanc pour du brouillard, sombre pour de la fumée), dans `volumes.push_back(Volume(...))` de `main.cpp`.
 
 Limites actuelles : densité constante, diffusion isotrope, volumes sphériques uniquement, pas d'échantillonnage direct des lumières (donc du bruit à faible nombre d'échantillons).
+
+
+## Éclairage par image (IBL)
+
+![Scène éclairée par une envmap HDR](render_ibl.png)
+
+La scène est éclairée par une carte d'environnement HDR (image équirectangulaire) au lieu d'un simple dégradé de ciel : quand un rayon s'échappe de la scène, il lit sa couleur dans l'image. Le brouillard est éclairé par la même envmap.
+
+- **Chargement** : images `.hdr` (Radiance) via `stb_image`, interpolation bilinéaire, projection équirectangulaire.
+- **Utilisation** : `./path_tracer <échantillons> <threads> <envmap.hdr> [intensité] [rotation en degrés] [borne par échantillon]`
+- **Envmap de la capture** : Kloofendal 48d Partly Cloudy (Pure Sky), 1K, Poly Haven (licence CC0).
+
+Limites : l'échantillonnage est simple (les rayons ne trouvent le soleil que par hasard), donc un soleil très fort donne du bruit. Chaque échantillon est borné pour éviter les points blancs, ce qui retire une partie de l'énergie du soleil. Piste d'amélioration : échantillonnage d'importance de l'envmap.

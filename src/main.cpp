@@ -13,10 +13,12 @@
 #include "sphere.h"
 #include "volume.h"
 #include "rng.h"
+#include "envmap.h"
 
 Vec3 ray_color(const Ray& r,
                const std::vector<Sphere>& world,
                const std::vector<Volume>& volumes,
+               const EnvMap& env,
                int depth) {
     if (depth <= 0) return Vec3(0, 0, 0);
 
@@ -47,7 +49,7 @@ Vec3 ray_color(const Ray& r,
         // Diffusion isotrope : nouvelle direction uniforme sur la sphere
         Vec3 point = r.at(t_limit);
         Ray scattered(point, Vec3::random_unit_vector());
-        return hit_volume->albedo * ray_color(scattered, world, volumes, depth - 1);
+        return hit_volume->albedo * ray_color(scattered, world, volumes, env, depth - 1);
     }
 
     // 3. Sinon : comportement habituel
@@ -55,11 +57,15 @@ Vec3 ray_color(const Ray& r,
         Ray scattered;
         Vec3 attenuation;
         if (closest_rec.mat_ptr->scatter(r, closest_rec, attenuation, scattered)) {
-            return attenuation * ray_color(scattered, world, volumes, depth - 1);
+            return attenuation * ray_color(scattered, world, volumes, env, depth - 1);
         }
         return Vec3(0, 0, 0);
     }
 
+    // 4. Le rayon s'echappe : lumiere venant de l'environnement
+    if (env.loaded) {
+        return env.sample(r.direction);   // IBL : couleur lue dans l'image HDR
+    }
     Vec3 unit_direction = r.direction.normalized();
     double t = 0.5 * (unit_direction.y + 1.0);
     return (1.0 - t) * Vec3(1.0, 1.0, 1.0) + t * Vec3(0.5, 0.7, 1.0);
@@ -72,6 +78,7 @@ void render_rows(
     int samples_per_pixel, int max_depth,
     const std::vector<Sphere>& world,
     const std::vector<Volume>& volumes,
+    const EnvMap& env, double max_radiance,
     const Vec3& origin, const Vec3& lower_left_corner,
     const Vec3& horizontal, const Vec3& vertical,
     std::vector<Vec3>& pixels
@@ -85,7 +92,13 @@ void render_rows(
                 double sv = (j + random_double()) / (height - 1);
 
                 Ray r(origin, lower_left_corner + horizontal * su + vertical * sv - origin);
-                color = color + ray_color(r, world, volumes, max_depth);
+                Vec3 sample = ray_color(r, world, volumes, env, max_depth);
+                // Une envmap contient des valeurs tres au-dessus de 1 (le soleil) : un seul
+                // echantillon peut alors "exploser" (fireflies). On borne chaque echantillon.
+                sample.x = std::min(sample.x, max_radiance);
+                sample.y = std::min(sample.y, max_radiance);
+                sample.z = std::min(sample.z, max_radiance);
+                color = color + sample;
             }
 
             double scale = 1.0 / samples_per_pixel;
@@ -98,7 +111,7 @@ void render_rows(
     }
 }
 
-// Usage : ./path_tracer [samples_par_pixel] [nb_threads]
+// Usage : ./path_tracer [samples_par_pixel] [nb_threads] [envmap.hdr] [intensite] [rotation_degres] [borne_par_echantillon]
 int main(int argc, char** argv) {
     // Image
     const double aspect_ratio = 16.0 / 9.0;
@@ -106,6 +119,17 @@ int main(int argc, char** argv) {
     const int height = static_cast<int>(width / aspect_ratio);
     const int samples_per_pixel = (argc > 1) ? std::atoi(argv[1]) : 100;
     const int max_depth = 20; // un peu plus haut : la diffusion dans un volume consomme des rebonds
+
+    // Eclairage par image (optionnel)
+    EnvMap env;
+    if (argc > 3) {
+        if (!env.load(argv[3])) return 1;
+        if (argc > 4) env.intensity = std::atof(argv[4]);
+        if (argc > 5) env.rotation = std::atof(argv[5]) * M_PI / 180.0;
+    }
+    // Borne par echantillon (voir render_rows) : plus c'est bas, moins il y a de points blancs,
+    // mais plus on perd l'energie du soleil.
+    const double max_radiance = (argc > 6) ? std::atof(argv[6]) : 5.0;
 
     // Materiaux
     std::vector<std::unique_ptr<Material>> materials;
@@ -148,7 +172,9 @@ int main(int argc, char** argv) {
 
     std::vector<Vec3> pixels(width * height);
 
-    unsigned int num_threads = (argc > 2) ? std::atoi(argv[2]) : std::thread::hardware_concurrency();
+    // 0 (ou pas d'argument) = autant de threads que de coeurs detectes
+    unsigned int num_threads = (argc > 2) ? std::atoi(argv[2]) : 0;
+    if (num_threads == 0) num_threads = std::thread::hardware_concurrency();
     if (num_threads == 0) num_threads = 4;
 
     std::cout << "Rendering " << width << "x" << height << ", " << samples_per_pixel
@@ -169,6 +195,7 @@ int main(int argc, char** argv) {
             width, height,
             samples_per_pixel, max_depth,
             std::cref(world), std::cref(volumes),
+            std::cref(env), max_radiance,
             std::cref(origin), std::cref(lower_left_corner),
             std::cref(horizontal), std::cref(vertical),
             std::ref(pixels)
