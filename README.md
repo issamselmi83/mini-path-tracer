@@ -90,3 +90,14 @@ Limites : l'échantillonnage est simple (les rayons ne trouvent le soleil que pa
 Projet réalisé en autonomie en parallèle de mon M2 GIG (Géométrie Informatique Graphique) à Aix-Marseille Université, pour approfondir les fondamentaux mathématiques du rendu 3D (vecteurs, intersections géométriques, éclairage physique, rendu de volumes) avant d'attaquer un moteur de rendu temps réel (OpenGL/Vulkan).
 
 Inspiré de la méthode décrite dans [Ray Tracing in One Weekend](https://raytracing.github.io/) de Peter Shirley.
+
+## Éclairage direct de l'envmap (NEE + MIS)
+
+Une HDRI réelle contient un soleil très lumineux mais minuscule : des rayons tirés au hasard le trouvent très rarement, et l'écrêtage (`max_radiance`) supprimait son énergie, ce qui donnait un nuage gris et des ombres floues.
+
+- **Échantillonnage d'importance** de l'envmap : les directions sont tirées proportionnellement à la luminance de l'image (× sin θ), via des CDF marginale/conditionnelle.
+- **Next-event estimation** : à chaque diffusion (dans le volume ou sur une surface diffuse), un rayon d'ombre est lancé vers une direction tirée dans l'envmap. La transmittance à travers les volumes est évaluée de façon stochastique.
+- **Multiple importance sampling** (heuristique de puissance) pour combiner cet échantillonnage avec celui de la BRDF/fonction de phase, sans compter la lumière deux fois.
+- Les rebonds Lambertiens sont échantillonnés en cosinus.
+
+Limite : les matériaux spéculaires (métal, verre) ne reçoivent pas d'éclairage direct par NEE, ils passent par l'échantillonnage classique.

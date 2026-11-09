@@ -14,6 +14,10 @@ class Material {
 public:
     virtual ~Material() = default;
     virtual bool scatter(const Ray& r_in, const HitRecord& rec, Vec3& attenuation, Ray& scattered) const = 0;
+
+    // Les materiaux purement diffus renvoient true et leur albedo : le moteur peut alors
+    // eclairer directement ces surfaces depuis l'envmap (echantillonnage de la lumiere).
+    virtual bool diffuse_albedo(Vec3& albedo) const { (void)albedo; return false; }
 };
 
 class Lambertian : public Material {
@@ -23,6 +27,8 @@ public:
     Lambertian(const Vec3& albedo) : albedo(albedo) {}
 
     bool scatter(const Ray& r_in, const HitRecord& rec, Vec3& attenuation, Ray& scattered) const override;
+
+    bool diffuse_albedo(Vec3& a) const override { a = albedo; return true; }
 };
 
 class Metal : public Material {
@@ -64,7 +70,9 @@ inline bool refract(const Vec3& v, const Vec3& n, double ni_over_nt, Vec3& refra
 #include "hit_record.h"
 
 inline bool Lambertian::scatter(const Ray& r_in, const HitRecord& rec, Vec3& attenuation, Ray& scattered) const {
-    Vec3 scatter_direction = rec.normal + Vec3::random_in_unit_sphere();
+    // normale + vecteur unitaire aleatoire = distribution proportionnelle a cos(theta)
+    Vec3 scatter_direction = rec.normal + Vec3::random_unit_vector();
+    if (scatter_direction.length_squared() < 1e-12) scatter_direction = rec.normal;
     scattered = Ray(rec.point, scatter_direction);
     attenuation = albedo;
     return true;
